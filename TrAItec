@@ -1,0 +1,278 @@
+using System.Collections.Immutable;
+using System.Data.Common;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+
+class Trido { 
+
+    //Predefined Consts / Values
+    private const float heigth = 15, width = 29;
+    private static List<Card> cards = new List<Card>() { 
+        new Card() { CardID = 0,  TypeID = 0, Name = "Horizontal Attack" },
+        new Card() { CardID = 1,  TypeID = 0, Name = "Vertical Attack" },
+        new Card() { CardID = 2,  TypeID = 0, Name = "Throw" },
+        new Card() { CardID = 3,  TypeID = 0, Name = "Jump" },
+        new Card() { CardID = 4,  TypeID = 1, Name = "Move 1" },
+        new Card() { CardID = 5,  TypeID = 1, Name = "Move 2" },
+        new Card() { CardID = 6,  TypeID = 1, Name = "Move 2 no Swap" },
+        new Card() { CardID = 7,  TypeID = 1, Name = "Move 3 vertical" },
+        new Card() { CardID = 8,  TypeID = 2, Name = "Build" },
+        new Card() { CardID = 9,  TypeID = 2, Name = "Destroy" },
+        new Card() { CardID = 10, TypeID = 2, Name = "Shield" },
+        new Card() { CardID = 11, TypeID = 2, Name = "Manipulate" }
+    };
+
+    //Setup
+    private static int round = 1, turn = 1;
+
+    private static List<int> setupBlockades = new List<int>() { 8, 10, 18, 19, 20, 21, 22, 23, 24, 32, 34 };
+    private static List<int> playerTeam1Spawns = new List<int>() { 0, 1, 2 }, playerTeam2Spawns = new List<int>() { 40, 41, 42 }, playerLives1Setups = new List<int>() { 2, 2, 2 }, playerLives2Setups = new List<int>() { 2, 2, 2 };
+
+    //High Usage Runtime
+    private static List<Field> fields = new List<Field>();
+    private static List<List<Field>> fieldColumns = new List<List<Field>>();
+
+    private static List<Player> players = new List<Player>();
+    private static List<List<Player>> playerTeams = new List<List<Player>>();
+
+    private static List<List<Card>> playedCards = new List<List<Card>>();
+    private static List<List<List<int>>> cardOptions = new List<List<List<int>>>(); //[PLAYER][TYPE][CARD]
+    private static List<List<List<int>>> cardOptionsTurn1 = new List<List<List<int>>>();
+
+    //Runtime
+    private static System.Random RANDOM = new System.Random();
+
+    private static void Main(string[] args)
+    {
+        BoardSetup();
+        DrawBoard();
+        PricipaledRandomMove(new CardInfo() { cardValue = 0, typeValue = 0 });
+    }
+
+    private static void PricipaledRandomMove(CardInfo cardInfo)
+    {
+        int whichTeamsTurn = (turn + round) % 2;
+        if (cardInfo.cardValue == -1)
+        {
+            if (cardInfo.typeValue == -1) cardInfo.typeValue = RANDOM.Next(0, 3);
+            cardInfo.cardValue = RANDOM.Next(0, cardOptions[whichTeamsTurn][cardInfo.typeValue].Count);
+        }
+        PlayPrincipaledAction(cardOptions[whichTeamsTurn][cardInfo.typeValue][cardInfo.cardValue], whichTeamsTurn);
+        cardOptions[whichTeamsTurn][cardInfo.typeValue].RemoveAt(cardInfo.cardValue);
+    }
+
+    private static void PlayPrincipaledAction(int cardID, int whichsTurn)
+    {
+        Console.WriteLine("PLAY " + cardID);
+        switch(cardID)
+        {
+            case 0:
+                int randomPlayerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
+                SwapMove(playerTeams[whichsTurn][randomPlayerIndex], fields[playerTeams[whichsTurn][randomPlayerIndex].PosFieldID].soroundedTiles[RANDOM.Next(0,fields[playerTeams[whichsTurn][randomPlayerIndex].PosFieldID].soroundedTiles.Count)]);
+                break;
+        }
+    }
+
+    private static void SwapMove(Player player, int field)
+    {
+        int playerIndex = GetPlayerOnField(field);
+        if (playerIndex == -1)
+        {
+            //Positonal Change from the one player with recalculating field arrays
+            return;
+        }
+        //Positional Change from both players without recalculating field arrays
+    }
+
+    private static int GetPlayerOnField(int field)
+    {
+        for (int p = 0; p < players.Count; p++) if (players[p].PosFieldID == field) return p;
+        return -1;
+    }
+
+    //private static bool IsPlayerOnField(int field)
+    //{
+    //    for (int p = 0; p < playerPositions.Count; p++) if (p == field) return true;
+    //    return false;
+    //}
+
+    private static void IncreaseTurn()
+    {
+
+    }
+
+    private static void BoardSetup()
+    {
+        //---> Board Creation
+        int amount = 3, IDer = 3;
+        bool backWards = false;
+        for (int column = 0; amount > 2; column++)
+        {
+            fieldColumns.Add(new List<Field>());
+            for (int a = 0; a < amount; a++)
+            {
+                if (amount == 7) backWards = true;
+
+                fields.Add(new Field() { Pos = new Field.Position() { x = column * 3 + 2, y = 8 - amount + a * 2 }, FieldState = Field.State.Normal, Column = column, Diagonal = IDer - a, ID = fields.Count, Heigth = a });
+                fieldColumns[column].Add(fields[fields.Count-1]);
+            }
+
+            if (backWards) amount--;
+            else
+            {
+                amount++;
+                IDer++;
+            }
+        }
+
+        //---> Set Setup Blockade & Player Positions
+        for (int i = 0; i < setupBlockades.Count; i++)
+        {
+            fields[setupBlockades[i]].FieldState = Field.State.Blocked;
+        }
+        playerTeams.Add(new List<Player>());
+        playerTeams.Add(new List<Player>());
+        for (int i = 0; i < playerTeam1Spawns.Count; i++)
+        {
+            Player p = new Player() { Team = 0, PosFieldID = playerTeam1Spawns[i], Lives = playerLives1Setups[i] };
+            players.Add(p);
+            playerTeams[0].Add(p);
+            fields[playerTeam1Spawns[i]].FieldState = Field.State.BluePlayer;
+        }
+        for (int i = 0; i < playerTeam2Spawns.Count; i++) 
+        {
+            Player p = new Player() { Team = 1, PosFieldID = playerTeam2Spawns[i], Lives = playerLives2Setups[i] };
+            players.Add(p);
+            playerTeams[1].Add(p);
+            fields[playerTeam2Spawns[i]].FieldState = Field.State.GreenPlayer;
+        }
+
+        //---> Process field enviroments
+        for(int f = 0; f < fields.Count; f++)
+        {
+            if (fields[f].Heigth != 0) fields[f].soroundedTiles.Add(fieldColumns[fields[f].Column][fields[f].Heigth - 1].ID);
+            if (fields[f].Heigth + 1 != fieldColumns[fields[f].Column].Count) fields[f].soroundedTiles.Add(fieldColumns[fields[f].Column][fields[f].Heigth + 1].ID);
+
+            int currentFieldDiagonal = fields[f].Diagonal;
+            for (int it = -1; it < 2; it += 2)
+            {
+                if (fields[f].Column + it == fieldColumns.Count || fields[f].Column + it == -1) continue;
+            
+                for (int c1 = 0; c1 < fieldColumns[fields[f].Column + it].Count; c1++)
+                    if (fieldColumns[fields[f].Column + it][c1].Diagonal == currentFieldDiagonal || fieldColumns[fields[f].Column + it][c1].Diagonal == currentFieldDiagonal + it)
+                        fields[f].soroundedTiles.Add(fieldColumns[fields[f].Column + it][c1].ID);
+            }
+
+            for (int cst = 0; cst < fields[f].soroundedTiles.Count; cst++)
+            {
+                Field.State tempState = fields[fields[f].soroundedTiles[cst]].FieldState;
+                if (tempState == Field.State.Blocked)
+                {
+                    fields[f].blockadedSoroundedTiles.Add(fields[f].soroundedTiles[cst]);
+                    fields[f].coveredSoroundedTiles.Add(fields[f].soroundedTiles[cst]);
+                }
+                else if (tempState == Field.State.BluePlayer || tempState == Field.State.GreenPlayer)
+                {
+                    fields[f].coveredSoroundedTiles.Add(fields[f].soroundedTiles[cst]);
+                    fields[f].nonBlockadedSoroundedTiles.Add(fields[f].soroundedTiles[cst]);
+                }
+                else
+                {
+                    fields[f].emptySoroundedTiles.Add(fields[f].soroundedTiles[cst]);
+                    fields[f].nonBlockadedSoroundedTiles.Add(fields[f].soroundedTiles[cst]);
+                }
+            }
+        }
+
+        //---> Card Options (Sorting)
+        playedCards.Add(new List<Card>());
+        playedCards.Add(new List<Card>());
+
+        for (int i = 0; i < 2; i++) {
+            cardOptionsTurn1.Add(new List<List<int>>());
+            cardOptions.Add(new List<List<int>>());
+            for (int t = 0; t < 3; t++)
+            {
+                cardOptionsTurn1[i].Add(new List<int>());
+                cardOptions[i].Add(new List<int>());
+            }
+            for (int c = 0; c < cards.Count; c++)
+            {
+                cardOptionsTurn1[i][cards[c].TypeID].Add(cards[c].CardID);
+                cardOptions[i][cards[c].TypeID].Add(cards[c].CardID);
+            }
+        }
+    }
+
+    private static void DrawBoard()
+    {
+        Console_Write("   {ROUND - " + round + "} ", ConsoleColor.DarkGreen);
+        Console_Write("{Turn - " + turn + "}", ConsoleColor.DarkGreen);
+        for (int h = 0; h < heigth; h++)
+        {
+            for (int w = 0; w < width; w++)
+            {
+                int tempField = GetFieldByPosition(w, h);
+
+                if (tempField == -1)
+                {
+                    Console.Write(' ');
+                    continue;
+                }
+
+                if (fields[tempField].FieldState == Field.State.Normal) Console_Write(fields[tempField].emptySoroundedTiles.Count.ToString(), ConsoleColor.White);
+                else if (fields[tempField].FieldState == Field.State.Blocked) Console_Write("■", ConsoleColor.Magenta);
+                else if (fields[tempField].FieldState == Field.State.BluePlayer) Console_Write("O", ConsoleColor.Blue);
+                else if (fields[tempField].FieldState == Field.State.GreenPlayer) Console_Write("O", ConsoleColor.Green);
+            }
+            Console.WriteLine();
+        }
+    }
+
+    private static void Console_Write(string s, ConsoleColor cc)
+    {
+        Console.ForegroundColor = cc;
+        Console.Write(s);
+        Console.ResetColor();
+    }
+
+    private static int GetFieldByPosition(int x, int y)
+    {
+        for (int i = 0; i < fields.Count; i++) 
+            if (fields[i].Pos.x == x && fields[i].Pos.y == y)
+                return i;
+        return -1;
+    }
+
+    public struct CardInfo
+    {
+        public int cardValue, typeValue; //0 = e.g. Blue
+    }
+}
+
+public class Card
+{
+    public string Name = "";
+    public int CardID, TypeID;
+}
+
+public class Player
+{
+    public int PosFieldID, Lives, Team;
+}
+
+public class Field
+{
+    public Position Pos;
+    public State FieldState;
+    public int Column, Diagonal, Heigth, ID;
+    public List<int> soroundedTiles = new List<int>(),
+        coveredSoroundedTiles = new List<int>(), emptySoroundedTiles = new List<int>(),
+        blockadedSoroundedTiles = new List<int>(), nonBlockadedSoroundedTiles = new List<int>();
+    public enum State { Normal, Blocked, BluePlayer, GreenPlayer }
+
+    public struct Position
+    {
+        public int x, y;
+    }
+}
