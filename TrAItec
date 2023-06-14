@@ -8,12 +8,14 @@ static class TrAI
 {
     private static void Main(string[] args)
     {
-        Trido trido = new Trido();
+        APMCS trido = new APMCS();
     }
 }
 
-class Trido
+class APMCS
 {
+    #region VARIABLES
+
     //Predefined Consts / Values
     private const float heigth = 15, width = 29;
     private List<int[]> cardTypeBoundings = new List<int[]>() { new int[] { 0, 4 }, new int[] { 4, 8 }, new int[] { 8, 12 } };
@@ -38,6 +40,9 @@ class Trido
     private List<int> setupBlockades = new List<int>() { 8, 10, 18, 19, 20, 21, 22, 23, 24, 32, 34 };
     private List<int> playerTeam1Spawns = new List<int>() { 0, 1, 9 }, playerTeam2Spawns = new List<int>() { 40, 41, 42 }, playerLives1Setups = new List<int>() { 2, 2, 2 }, playerLives2Setups = new List<int>() { 2, 2, 2 };
 
+    private int playerSpawnCount; //Including null-Player
+    private List<int> playerSpawns = new List<int>();
+
     //High Usage Runtime
     private List<Field> fields = new List<Field>();
     private List<List<Field>> fieldColumns = new List<List<Field>>();
@@ -51,116 +56,205 @@ class Trido
 
     //Runtime
     private System.Random RANDOM = new System.Random();
+
     private List<List<int>> APMCS_Options = new List<List<int>>();
     private List<int[]> APMCS_KnownCardBoundaries = new List<int[]>();
 
-    public Trido()
+    private int[] larr = new int[12] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+
+    #endregion
+
+    #region MAIN
+
+    /// <summary>
+    /// 
+    /// </summary>
+    public APMCS()
     {
         BoardSetup();
         DrawBoard();
         List<int[]> temporaryBoundaries = new List<int[]>();
         for (int i = 0; i < 19; i++)
         {
-            temporaryBoundaries.Add(new int[] { 0, 1 });
+            temporaryBoundaries.Add(new int[] { 1, 2 });
         }
         ApproximatedPrincipaledMonteCargoSearch(temporaryBoundaries);
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="knownCardBoundaries">An list of arrays which is showing the known limitations for the played cards</param>
     private void ApproximatedPrincipaledMonteCargoSearch(List<int[]> knownCardBoundaries)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
+        //Pre Calculations
         int whichsTurn = (round + turn) % 2;
         APMCS_KnownCardBoundaries = knownCardBoundaries;
 
+        //Board evaluations count
         for (int i = 0; i < 400000; i++)
         {
+            //Current Round Turn Rolling (Full Round)
             ClearAPMCSOptions();
             for (int t = 0; t < 18; t++) whichsTurn = PrincipaledRandomMove(whichsTurn, APMCS_KnownCardBoundaries[t]);
 
+            //Following Round Turn Rolling (Portion of Round)
             ClearAPMCSOptions();
             for (int t = 0; t < 4; t++) whichsTurn = PrincipaledRandomMove(whichsTurn, APMCS_KnownCardBoundaries[18]);
 
             //Evaluate Board
 
-            //BlockadeReset();
-            //PlayerSetup();
 
             //Reset Board
+            PlayerReset();
+            BlockadeReset();
         }
 
         stopwatch.Stop();
 
-
-        Console.WriteLine("Der Prozess hat " + stopwatch.ElapsedMilliseconds + " Millisekunden benötigt ¯\\_(o)_/¯");
         DrawBoard();
-
-
-        //APMCS_Options[whichsTurn].Remove(0);
-
-        //18x PrincipaledRandomMove
-        //Round Reset
-        //4x PrincipaledRandomMove
+        Console.WriteLine("Der Prozess hat " + stopwatch.ElapsedMilliseconds + " Millisekunden benötigt ¯\\_(o)_/¯");
     }
 
-    private int[] larr = new int[12] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
-    private void ClearAPMCSOptions()
-    {
-        APMCS_Options.Clear();
-        APMCS_Options.Add(new List<int>(larr));
-        APMCS_Options.Add(new List<int>(larr));
-    }
-
+    /// <summary>
+    /// Plays one rollout move from the APMCS
+    /// </summary>
+    /// <param name="whichTeamsTurn">0 = Blue / 1 = Green</param>
+    /// <param name="cardBoundaries">An array which includes the lowest and highest possible card index</param>
+    /// <returns></returns>
     private int PrincipaledRandomMove(int whichTeamsTurn, int[] cardBoundaries)
     {
-        PlayAction(APMCS_Options[whichTeamsTurn][RANDOM.Next(cardBoundaries[0], cardBoundaries[1])], whichTeamsTurn);
+        PlayRandomAction(APMCS_Options[whichTeamsTurn][RANDOM.Next(cardBoundaries[0], cardBoundaries[1])], whichTeamsTurn);
+        //DrawBoard();
         return 1 - whichTeamsTurn;
     }
 
-    //private  void PricipaledRandomMove(CardInfo cardInfo)
-    //{
-    //    int whichTeamsTurn = (turn + round) % 2;
-    //    if (cardInfo.cardValue == -1)
-    //    {
-    //        if (cardInfo.typeValue == -1) cardInfo.typeValue = RANDOM.Next(0, 3);
-    //        cardInfo.cardValue = RANDOM.Next(0, cardOptions[whichTeamsTurn][cardInfo.typeValue].Count);
-    //    }
-    //    PlayPrincipaledAction(cardOptions[whichTeamsTurn][cardInfo.typeValue][cardInfo.cardValue], whichTeamsTurn);
-    //    cardOptions[whichTeamsTurn][cardInfo.typeValue].RemoveAt(cardInfo.cardValue);
-    //}
+    #endregion
 
-    private void PlayAction(int cardID, int whichsTurn)
+    #region ACTIONS
+
+    /// <summary>
+    /// Plays a random action including changing all needed board values for that specific action.
+    /// </summary>
+    /// <param name="cardID">The ID of the played card</param>
+    /// <param name="whichsTurn"></param>
+    private void PlayRandomAction(int cardID, int whichsTurn)
     {
         //APMCS_Options[whichsTurn].Remove(cardID);
+        int playerIndex = 0;
         switch (cardID)
         {
-            case 0:
-                int playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
+            case 0: //Move-1-Swap
+                playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
                 SwapMove(playerTeams[whichsTurn][playerIndex].PosFieldID, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].soroundedTiles[RANDOM.Next(0, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].soroundedTiles.Count)]);
+                break;
+
+            case 1: //Move-2-Non-Swap
+                playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
+
+                UpdateFieldTempSorouToEmpty(playerTeams[whichsTurn][playerIndex].PosFieldID);
+                if (fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles.Count != 0) NonSwapMove(playerTeams[whichsTurn][playerIndex].PosFieldID, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles[RANDOM.Next(0, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles.Count)]);
+                UpdateFieldTempSorouToEmpty(playerTeams[whichsTurn][playerIndex].PosFieldID);
+                if (fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles.Count != 0) NonSwapMove(playerTeams[whichsTurn][playerIndex].PosFieldID, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles[RANDOM.Next(0, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles.Count)]);
+                break;
+
+            case 2:
+
                 break;
         }
     }
 
+    /// <summary>
+    /// Swaps the (player)-state between these two fields. 
+    /// </summary>
+    /// <param name="field1">Index of field 1</param>
+    /// <param name="field2">Index of field 2</param>
     private void SwapMove(int field1, int field2)
     {
         Field.State tempState = fields[field2].FieldState;
-        Player tempPlayer = players[fields[field2].player.ID];
+        int tempPlayer = fields[field2].PlayerID;
 
-        tempPlayer.PosFieldID = field1;
-        fields[field1].player.PosFieldID = field2;
-
+        players[fields[field1].PlayerID].PosFieldID = field2;
         fields[field2].FieldState = fields[field1].FieldState;
-        fields[field2].player = players[fields[field1].player.ID];
+        fields[field2].PlayerID = fields[field1].PlayerID;
 
+        players[tempPlayer].PosFieldID = field1;
         fields[field1].FieldState = tempState;
-        fields[field1].player = tempPlayer;
+        fields[field1].PlayerID = tempPlayer;
     }
 
-    private void IncreaseTurn()
+    private void NonSwapMove(int startField, int endField)
+    {
+        players[fields[startField].PlayerID].PosFieldID = endField;
+        fields[endField].FieldState = fields[startField].FieldState;
+        fields[endField].PlayerID = fields[startField].PlayerID;
+        fields[startField].FieldState = Field.State.Normal;
+        fields[startField].PlayerID = 0;
+    }
+
+    #endregion
+
+    #region BOARD MANAGEMENT
+
+    /// <summary>
+    /// 
+    /// </summary>
+    private void UpdateFieldTempSorouToEmpty(int field)
+    {
+        fields[field].tempTiles.Clear();
+        for (int f = 0; f < fields[field].soroundedTiles.Count; f++)
+            if (fields[fields[field].soroundedTiles[f]].FieldState == Field.State.Normal)
+                fields[field].tempTiles.Add(fields[field].soroundedTiles[f]);
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <returns></returns>
+    private int TerminalState()
     {
 
+
+        return 0;
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    private int EvaluateBoard()
+    {
+
+
+        return 0;
+    }
+
+    /// <summary>
+    /// Sets the players back to their spawn position.
+    /// </summary>
+    private void PlayerReset()
+    {
+        for (int i = 1; i < players.Count; i++)
+            SwapMove(players[i].PosFieldID, playerSpawns[i]);
+    }
+
+    /// <summary> 
+    /// Loads the firstly spawned blockade positions back.
+    /// </summary>
+    private void BlockadeReset()
+    {
+        for (int f = 0; f < fields.Count; f++)
+            if (fields[f].FieldState == Field.State.Blocked)
+                fields[f].FieldState = Field.State.Normal;
+
+        for (int i = 0; i < setupBlockades.Count; i++)
+            fields[setupBlockades[i]].FieldState = Field.State.Blocked;
+    }
+
+    /// <summary>
+    /// Loads the fields, as well as the spawn positions of the players and the blockades, calculates the sourounding fields and pre calculates possible card options.
+    /// </summary>
     private void BoardSetup()
     {
         //---> Board Creation
@@ -192,7 +286,27 @@ class Trido
         }
         playerTeams.Add(new List<Player>());
         playerTeams.Add(new List<Player>());
-        PlayerSetup();
+        players.Add(new Player() { Null = true });
+        playerSpawns.Add(-1);
+        for (int i = 0; i < playerTeam1Spawns.Count; i++)
+        {
+            Player p = new Player() { Team = 0, PosFieldID = playerTeam1Spawns[i], Lives = playerLives1Setups[i], Null = false, ID = i + 1 };
+            players.Add(p);
+            playerTeams[0].Add(players[players.Count - 1]);
+            fields[playerTeam1Spawns[i]].FieldState = Field.State.BluePlayer;
+            fields[playerTeam1Spawns[i]].PlayerID = players.Count - 1;
+            playerSpawns.Add(playerTeam1Spawns[i]);
+        }
+        for (int i = 0; i < playerTeam2Spawns.Count; i++)
+        {
+            Player p = new Player() { Team = 1, PosFieldID = playerTeam2Spawns[i], Lives = playerLives2Setups[i], Null = false, ID = playerTeam1Spawns.Count + i + 1 };
+            players.Add(p);
+            playerTeams[1].Add(players[players.Count - 1]);
+            fields[playerTeam2Spawns[i]].FieldState = Field.State.GreenPlayer;
+            fields[playerTeam2Spawns[i]].PlayerID = players.Count - 1;
+            playerSpawns.Add(playerTeam2Spawns[i]);
+        }
+        playerSpawnCount = playerTeam1Spawns.Count + playerTeam2Spawns.Count + 1;
 
         //---> Process field enviroments
         for (int f = 0; f < fields.Count; f++)
@@ -232,46 +346,17 @@ class Trido
         }
     }
 
-    private void PlayerSetup()
-    {
-        players.Clear();
-        players.Add(new Player() { Null = true });
-        for (int i = 0; i < playerTeam1Spawns.Count; i++)
-        {
-            Player p = new Player() { Team = 0, PosFieldID = playerTeam1Spawns[i], Lives = playerLives1Setups[i], Null = false, ID = i + 1 };
-            players.Add(p);
-            playerTeams[0].Add(players[players.Count - 1]);
-            fields[playerTeam1Spawns[i]].FieldState = Field.State.BluePlayer;
-            fields[playerTeam2Spawns[i]].player = p;
-        }
-        for (int i = 0; i < playerTeam2Spawns.Count; i++)
-        {
-            Player p = new Player() { Team = 1, PosFieldID = playerTeam2Spawns[i], Lives = playerLives2Setups[i], Null = false, ID = playerTeam1Spawns.Count + i + 1 };
-            players.Add(p);
-            playerTeams[1].Add(players[players.Count - 1]);
-            fields[playerTeam2Spawns[i]].FieldState = Field.State.GreenPlayer;
-            fields[playerTeam2Spawns[i]].player = p;
-        }
-    }
+    #endregion
 
-    private void BlockadeReset()
-    {
-        int a = 0;
-        for (int f = 0; a < setupBlockades.Count; f++)
-        {
-            if (fields[f].ID == setupBlockades[a]) { 
-                fields[f].FieldState = Field.State.Blocked;
-                a++;
-                continue;
-            }
-            fields[f].FieldState = Field.State.Normal;
-        }
-    }
+    #region VISUALS
 
+    /// <summary>
+    /// Visualizes a board position by drawing it specifically in the Console.
+    /// </summary>
     private void DrawBoard()
     {
-        Console_Write("   {ROUND - " + round + "} ", ConsoleColor.DarkGreen);
-        Console_Write("{Turn - " + turn + "}", ConsoleColor.DarkGreen);
+        Console_Write("         {ROUND - " + round + "} ", ConsoleColor.DarkGreen);
+        Console_Write(" {Turn - " + turn + "}", ConsoleColor.DarkGreen);
         for (int h = 0; h < heigth; h++)
         {
             for (int w = 0; w < width; w++)
@@ -293,6 +378,15 @@ class Trido
         }
     }
 
+    #endregion
+
+    #region UTILITY
+
+    /// <summary>
+    /// Writes a text to the console in a specific color
+    /// </summary>
+    /// <param name="s">The text content</param>
+    /// <param name="cc">The text color</param>
     private void Console_Write(string s, ConsoleColor cc)
     {
         Console.ForegroundColor = cc;
@@ -300,6 +394,12 @@ class Trido
         Console.ResetColor();
     }
 
+    /// <summary>
+    /// Tries to find a field out of the fields-array with a specific visual position. Returns the fields-index or -1 if the position doesn't exist.
+    /// </summary>
+    /// <param name="x">The X-Position</param>
+    /// <param name="y">The Y-Position</param>
+    /// <returns></returns>
     private int GetFieldByPosition(int x, int y)
     {
         for (int i = 0; i < fields.Count; i++)
@@ -308,11 +408,21 @@ class Trido
         return -1;
     }
 
-    //public struct CardInfo
-    //{
-    //    public int cardValue, typeValue; //0 = e.g. Blue
-    //}
+
+    /// <summary>
+    /// Gives both players all card options back (2x Lists from 0-11)
+    /// </summary>
+    private void ClearAPMCSOptions()
+    {
+        APMCS_Options.Clear();
+        APMCS_Options.Add(new List<int>(larr));
+        APMCS_Options.Add(new List<int>(larr));
+    }
+
+    #endregion
 }
+
+#region DATA CLASSES
 
 public class Card
 {
@@ -330,9 +440,8 @@ public class Field
 {
     public Position Pos;
     public State FieldState;
-    public int Column, Diagonal, Heigth, ID;
-    public Player player = new Player();
-    public List<int> soroundedTiles = new List<int>();
+    public int Column, Diagonal, Heigth, ID, PlayerID;
+    public List<int> soroundedTiles = new List<int>(), tempTiles = new List<int>();
     public enum State { Normal, Blocked, BluePlayer, GreenPlayer }
 
     public struct Position
@@ -340,3 +449,5 @@ public class Field
         public int x, y;
     }
 }
+
+#endregion
