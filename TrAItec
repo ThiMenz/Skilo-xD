@@ -61,6 +61,7 @@ class APMCS
     private List<int[]> APMCS_KnownCardBoundaries = new List<int[]>();
 
     private int[] larr = new int[12] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+    private int[] larr2 = new int[2] { -1, 1 };
 
     #endregion
 
@@ -143,27 +144,56 @@ class APMCS
     private void PlayRandomAction(int cardID, int whichsTurn)
     {
         //APMCS_Options[whichsTurn].Remove(cardID);
-        int playerIndex = 0;
         switch (cardID)
         {
-            case 0: //Move-1-Swap
-                playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
-                SwapMove(playerTeams[whichsTurn][playerIndex].PosFieldID, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].soroundedTiles[RANDOM.Next(0, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].soroundedTiles.Count)]);
-                break;
+            case 0: Action0(whichsTurn); break; //Move-1-Swap
 
-            case 1: //Move-2-Non-Swap
-                playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
+            case 1: Action1(whichsTurn); break; //Move-2-Non-Swap
 
-                UpdateFieldTempSorouToEmpty(playerTeams[whichsTurn][playerIndex].PosFieldID);
-                if (fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles.Count != 0) NonSwapMove(playerTeams[whichsTurn][playerIndex].PosFieldID, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles[RANDOM.Next(0, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles.Count)]);
-                UpdateFieldTempSorouToEmpty(playerTeams[whichsTurn][playerIndex].PosFieldID);
-                if (fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles.Count != 0) NonSwapMove(playerTeams[whichsTurn][playerIndex].PosFieldID, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles[RANDOM.Next(0, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].tempTiles.Count)]);
-                break;
+            case 2: Action2(whichsTurn); break; //Move-2-Swap
 
-            case 2:
-
-                break;
+                //tempPlayerFieldID = 1;
+                //playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
+                //int tempRandomField2 = fields[playerTeams[whichsTurn][playerIndex].PosFieldID].soroundedTiles[RANDOM.Next(0, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].soroundedTiles.Count)];
+                //SwapMove(playerTeams[whichsTurn][playerIndex].PosFieldID, );
         }
+    }
+
+    //All Action Methods ->
+    //P -> Performance Value (higher = slower)
+
+    //MISSING: Tridon Checks
+
+    private void Action0(int whichsTurn) //P 700
+    {
+        int playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
+        int tempPlayerFieldID = playerTeams[whichsTurn][playerIndex].PosFieldID;
+        SwapMove(tempPlayerFieldID, fields[tempPlayerFieldID].soroundedTiles[RANDOM.Next(0, fields[tempPlayerFieldID].soroundedTiles.Count)]);
+    }
+    private void Action1(int whichsTurn) //P 1950 -> Really rare simulations which are not possible due to completely random player picks (Fix?)
+    {
+        int playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
+        int tempPlayerFieldID = playerTeams[whichsTurn][playerIndex].PosFieldID;
+        UpdateFieldTempSorouToEmpty(tempPlayerFieldID);
+        if (fields[tempPlayerFieldID].tempTiles.Count != 0)
+        {
+            int tempRandomField = fields[tempPlayerFieldID].tempTiles[RANDOM.Next(0, fields[tempPlayerFieldID].tempTiles.Count)];
+            UpdateFieldTempSorouToEmpty(tempRandomField);
+            fields[tempRandomField].tempTiles.Add(tempPlayerFieldID);
+            NonSwapMove(tempPlayerFieldID, fields[tempRandomField].tempTiles[RANDOM.Next(0, fields[tempRandomField].tempTiles.Count)]);
+        }
+    }
+    private void Action2(int whichsTurn) //P 900
+    {
+        int playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
+        int tempPlayerFieldID = playerTeams[whichsTurn][playerIndex].PosFieldID;
+        int tempSubPlayerPos = fields[tempPlayerFieldID].soroundedTiles[RANDOM.Next(0, fields[tempPlayerFieldID].soroundedTiles.Count)];
+        SwapMove(tempPlayerFieldID, tempSubPlayerPos);
+        SwapMove(tempSubPlayerPos, fields[tempSubPlayerPos].soroundedTiles[RANDOM.Next(0, fields[tempSubPlayerPos].soroundedTiles.Count)]);
+    }
+    private void Action3(int whichsTurn)
+    {
+
     }
 
     /// <summary>
@@ -185,13 +215,42 @@ class APMCS
         fields[field1].PlayerID = tempPlayer;
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="startField"></param>
+    /// <param name="endField"></param>
     private void NonSwapMove(int startField, int endField)
     {
+        if (startField == endField) return; //(nur nötig, wenn man auch den Case haben kann -> wie bei Action 1)
+
         players[fields[startField].PlayerID].PosFieldID = endField;
         fields[endField].FieldState = fields[startField].FieldState;
         fields[endField].PlayerID = fields[startField].PlayerID;
         fields[startField].FieldState = Field.State.Normal;
         fields[startField].PlayerID = 0;
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="playerIndex"></param>
+    /// <param name="playerField"></param>
+    private void RandomVerticalMove(int playerIndex, int playerField)
+    {
+        //int random = fields[playerField].Heigth + larr2[RANDOM.Next(0, 2)];
+        //if (random != -1 || random == fieldColumns[fields[playerField].Column].Count)
+        //{
+        //    random *= -1;
+        //}
+        //else if (fields[random].FieldState == Field.State.Normal)
+        //{
+        //
+        //}
+        //else if (fields[(random *= -1)].FieldState == Field.State.Normal)
+        //{
+        //
+        //}
     }
 
     #endregion
@@ -323,6 +382,13 @@ class APMCS
                     if (fieldColumns[fields[f].Column + it][c1].Diagonal == currentFieldDiagonal || fieldColumns[fields[f].Column + it][c1].Diagonal == currentFieldDiagonal + it)
                         fields[f].soroundedTiles.Add(fieldColumns[fields[f].Column + it][c1].ID);
             }
+
+            //int tempHeigth = fields[f].Heigth;
+            //if (tempHeigth > 0 && tempHeigth + 1 < fieldColumns[fields[f].Column].Count)
+            //{
+            //    fields[f].verticalMoveOptions.Add(new int[] { tempHeigth + 1, tempHeigth, tempHeigth - 1 });
+            //    fields[f].verticalMoveOptions.Add(new int[] { tempHeigth - 1, tempHeigth, tempHeigth + 1 });
+            //}
         }
 
         //---> Card Options (Sorting)
@@ -442,6 +508,7 @@ public class Field
     public State FieldState;
     public int Column, Diagonal, Heigth, ID, PlayerID;
     public List<int> soroundedTiles = new List<int>(), tempTiles = new List<int>();
+    //public List<int[]> verticalMoveOptions = new List<int[]>();
     public enum State { Normal, Blocked, BluePlayer, GreenPlayer }
 
     public struct Position
