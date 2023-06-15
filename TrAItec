@@ -77,7 +77,7 @@ class APMCS
         List<int[]> temporaryBoundaries = new List<int[]>();
         for (int i = 0; i < 19; i++)
         {
-            temporaryBoundaries.Add(new int[] { 1, 2 });
+            temporaryBoundaries.Add(new int[] { 3, 4 });
         }
         ApproximatedPrincipaledMonteCargoSearch(temporaryBoundaries);
     }
@@ -95,7 +95,7 @@ class APMCS
         APMCS_KnownCardBoundaries = knownCardBoundaries;
 
         //Board evaluations count
-        for (int i = 0; i < 400000; i++)
+        for (int i = 0; i < 1; i++)
         {
             //Current Round Turn Rolling (Full Round)
             ClearAPMCSOptions();
@@ -128,7 +128,7 @@ class APMCS
     private int PrincipaledRandomMove(int whichTeamsTurn, int[] cardBoundaries)
     {
         PlayRandomAction(APMCS_Options[whichTeamsTurn][RANDOM.Next(cardBoundaries[0], cardBoundaries[1])], whichTeamsTurn);
-        //DrawBoard();
+        DrawBoard();
         return 1 - whichTeamsTurn;
     }
 
@@ -152,6 +152,7 @@ class APMCS
 
             case 2: Action2(whichsTurn); break; //Move-2-Swap
 
+            case 3: Action3(whichsTurn); break;
                 //tempPlayerFieldID = 1;
                 //playerIndex = RANDOM.Next(0, playerTeams[whichsTurn].Count);
                 //int tempRandomField2 = fields[playerTeams[whichsTurn][playerIndex].PosFieldID].soroundedTiles[RANDOM.Next(0, fields[playerTeams[whichsTurn][playerIndex].PosFieldID].soroundedTiles.Count)];
@@ -193,7 +194,21 @@ class APMCS
     }
     private void Action3(int whichsTurn)
     {
-
+        int playerCount = playerTeams[whichsTurn].Count;
+        int a = 0;
+        for (int p = RANDOM.Next(0, playerCount); a < playerCount; p++)
+        {
+            int tempField = playerTeams[whichsTurn][p].PosFieldID;
+            if (HasFieldVerticalMovementOptions(tempField))
+            {
+                int random = RANDOM.Next(0, fields[tempField].verticalSorou.Count);
+                if (fields[fields[tempField].verticalSorou[random]].FieldState != Field.State.Normal) random = 1 - random;
+                NonSwapMove(tempField, fields[tempField].verticalSorou[random]);
+                break;
+            }
+            a++;
+            if (p == playerCount - 1) p = 0;
+        }
     }
 
     /// <summary>
@@ -229,6 +244,14 @@ class APMCS
         fields[endField].PlayerID = fields[startField].PlayerID;
         fields[startField].FieldState = Field.State.Normal;
         fields[startField].PlayerID = 0;
+    }
+
+    private bool HasFieldVerticalMovementOptions(int field)
+    {
+        if (fields[fields[field].verticalSorou[0]].FieldState == Field.State.Normal) return true;
+        if (fields[field].verticalSorou.Count == 1) return false;
+        if (fields[fields[field].verticalSorou[1]].FieldState == Field.State.Normal) return true;
+        return false;
     }
 
     /// <summary>
@@ -383,11 +406,14 @@ class APMCS
                         fields[f].soroundedTiles.Add(fieldColumns[fields[f].Column + it][c1].ID);
             }
 
-            //int tempHeigth = fields[f].Heigth;
+            int tempHeigth = fields[f].Heigth;
+            if (tempHeigth > 0 && f != 0) fields[f].verticalSorou.Add(fields[f].ID - 1);
+            if (tempHeigth + 1 < fieldColumns[fields[f].Column].Count) fields[f].verticalSorou.Add(fields[f].ID + 1);
+
             //if (tempHeigth > 0 && tempHeigth + 1 < fieldColumns[fields[f].Column].Count)
             //{
-            //    fields[f].verticalMoveOptions.Add(new int[] { tempHeigth + 1, tempHeigth, tempHeigth - 1 });
-            //    fields[f].verticalMoveOptions.Add(new int[] { tempHeigth - 1, tempHeigth, tempHeigth + 1 });
+            //fields[f].verticalMoveOptions.Add(new int[] { tempHeigth + 1, tempHeigth, tempHeigth - 1 });
+            //fields[f].verticalMoveOptions.Add(new int[] { tempHeigth - 1, tempHeigth, tempHeigth + 1 });
             //}
         }
 
@@ -435,7 +461,7 @@ class APMCS
                     continue;
                 }
 
-                if (fields[tempField].FieldState == Field.State.Normal) Console_Write("■■", ConsoleColor.White);
+                if (fields[tempField].FieldState == Field.State.Normal) Console_Write("■" + fields[tempField].verticalSorou.Count, ConsoleColor.White);
                 else if (fields[tempField].FieldState == Field.State.Blocked) Console_Write("##", ConsoleColor.Magenta);
                 else if (fields[tempField].FieldState == Field.State.BluePlayer) Console_Write("()", ConsoleColor.Blue);
                 else if (fields[tempField].FieldState == Field.State.GreenPlayer) Console_Write("()", ConsoleColor.Green);
@@ -507,8 +533,7 @@ public class Field
     public Position Pos;
     public State FieldState;
     public int Column, Diagonal, Heigth, ID, PlayerID;
-    public List<int> soroundedTiles = new List<int>(), tempTiles = new List<int>();
-    //public List<int[]> verticalMoveOptions = new List<int[]>();
+    public List<int> soroundedTiles = new List<int>(), tempTiles = new List<int>(), verticalSorou = new List<int>();
     public enum State { Normal, Blocked, BluePlayer, GreenPlayer }
 
     public struct Position
