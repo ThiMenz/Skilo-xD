@@ -16,17 +16,17 @@ static class TrAI
 
 //THILOS IN-CODE TO-DO ->
 
-//=> Vertical Movement Null-Player Fix
+//=> [FINISHED] Vertical Movement Null-Player Fix
 
-//=> Custom Reset with player lives = 0 handling [IN PROGRESS...]
+//=> [FINISHED] Custom Reset with player lives = 0 handling
 
-//=> Increase Turn Method & Board Visualizing with player turn shower
+//=> [FINISHED] Increase Turn Method & Board Visualizing with player turn shower
 
-//=> General Tridon (Counter, Visuals, etc.)
+//=> [FINISHED] General Tridon (Counter, Visuals, etc.)
 
-//=> Tridon Checks after any movements
+//=> [FINISHED] Tridon Checks after any movements
 
-//=> Terminal State Handling
+//=> [FINISHED] Terminal State Handling
 
 //-----------------------
 
@@ -79,10 +79,12 @@ class APMCS
     };
 
     //Setup SHIELD IS MISSING
-    private int round = 1, turn = 1;
+    private int round = 1, turn = 19;
 
-    private List<int> setupBlockades = new List<int>() { 10, 18, 19, 21, 22, 23, 24, 32, 34 };
+    private List<int> setupBlockades = new List<int>() { 10, 18, 19, 22, 23, 24, 32, 34 };
     private List<int> playerTeam1Spawns = new List<int>() { 0, 1, 13 }, playerTeam2Spawns = new List<int>() { 12, 8, 20 }, playerLives1Setups = new List<int>() { 2, 2, 2 }, playerLives2Setups = new List<int>() { 2, 2, 2 };
+    private int[] collectedTridons = new int[2] { 0, 0 };
+    private bool isTridonOnBoard = true;
 
     private int playerSpawnCount; //Including null-Player
     private List<int> playerSpawns = new List<int>();
@@ -102,6 +104,9 @@ class APMCS
     //Runtime
     private System.Random RANDOM = new System.Random();
 
+    private bool Simulation_Terminal_State = false;
+    private int[] Simulation_Player_Count = new int[2];
+
     private List<List<int>> APMCS_Options = new List<List<int>>();
     private List<int[]> APMCS_KnownCardBoundaries = new List<int[]>();
 
@@ -118,7 +123,6 @@ class APMCS
     public APMCS()
     {
         BoardSetup();
-        DrawBoard();
         List<int[]> temporaryBoundaries = new List<int[]>();
         for (int i = 0; i < 19; i++)
         {
@@ -135,29 +139,56 @@ class APMCS
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
-        //Pre Calculations
+        //Pre Calculations & Saves
         int whichsTurn = (round + turn) % 2;
+        int whichsTurnCopy = whichsTurn;
+        int roundCopy = round;
+        int turnCopy = turn;
+        bool tridonCopy = isTridonOnBoard;
+        int[] tridonsCounterCopy = new int[2] { collectedTridons[0], collectedTridons[1] };
         APMCS_KnownCardBoundaries = knownCardBoundaries;
 
         //Board evaluations count
-        for (int i = 0; i < 1; i++)
+        for (int i = 0; i < 400000; i++)
         {
-            //TERMINAL STATE? -> Var which gets updated on player live = 0 and on tridon collect
-
             //Current Round Turn Rolling (Full Round)
             ClearAPMCSOptions();
-            for (int t = 0; t < 18; t++) whichsTurn = PrincipaledRandomMove(whichsTurn, APMCS_KnownCardBoundaries[t]);
+            for (int t = 0; t < 18; t++)
+            {
+                if (Simulation_Terminal_State) goto RollOutEnd;
+                //DrawBoard();
+                turn++;
+                whichsTurn = PrincipaledRandomMove(whichsTurn, APMCS_KnownCardBoundaries[t]);
+            }
 
             //Following Round Turn Rolling (Portion of Round)
+            turn = 1;
+            round++;
+            whichsTurn = 1 - whichsTurn;
             ClearAPMCSOptions();
-            for (int t = 0; t < 4; t++) whichsTurn = PrincipaledRandomMove(whichsTurn, APMCS_KnownCardBoundaries[18]);
+            for (int t = 0; t < 4; t++)
+            {
+                if (Simulation_Terminal_State) goto RollOutEnd;
+                //DrawBoard();
+                turn++;
+                whichsTurn = PrincipaledRandomMove(whichsTurn, APMCS_KnownCardBoundaries[18]);
+            }
 
+            //End of Roll Out Iteration
+        RollOutEnd:
             //Evaluate Board
 
 
             //Reset Board
-            BlockadeReset();
+            Simulation_Terminal_State = false;
+            whichsTurn = whichsTurnCopy;
+            round = roundCopy;
+            turn = turnCopy;
+            collectedTridons[0] = tridonsCounterCopy[0];
+            collectedTridons[1] = tridonsCounterCopy[1];
+            isTridonOnBoard = tridonCopy;
             PlayerReset();
+            BlockadeReset();
         }
 
         stopwatch.Stop();
@@ -175,8 +206,21 @@ class APMCS
     private int PrincipaledRandomMove(int whichTeamsTurn, int[] cardBoundaries)
     {
         PlayRandomAction(APMCS_Options[whichTeamsTurn][RANDOM.Next(cardBoundaries[0], cardBoundaries[1])], whichTeamsTurn);
-        DrawBoard();
+
+        isTridonOnBoard = isTridonOnBoard && fields[21].FieldState == Field.State.Normal;
+            
         return 1 - whichTeamsTurn;
+    }
+
+
+    /// <summary>
+    /// 
+    /// </summary>
+    private int EvaluateBoard()
+    {
+
+
+        return 0;
     }
 
     #endregion
@@ -193,8 +237,7 @@ class APMCS
         //APMCS_Options[whichsTurn].Remove(cardID);
         switch (cardID)
         {
-            //MOVEMENT MISSING TRIDONS
-
+            //MOVEMENT
             case 0: Action2(whichsTurn); break; //Move-1-Swap
 
             case 1: Action4(whichsTurn); break; //Move-2-Non-Swap
@@ -204,23 +247,20 @@ class APMCS
             case 3: Action3(whichsTurn); break; //Move-3-Vertically
 
             //ATTACKS
-
             case 4: Action4(whichsTurn); break; // Horizontal Attack
         }
     }
 
     //All Action Methods ->
-    //P -> Performance Value (higher = slower)
+    //P -> Performance Value (higher = slower) -> UPDATE?
 
-    //MISSING: Tridon Checks
-
-    private void Action0(int whichsTurn) //P 700
+    private void Action0(int whichsTurn)
     {
         int playerIndex = PickRandomPlayer(whichsTurn);
         int tempPlayerFieldID = players[playerIndex].PosFieldID;
         SwapMove(tempPlayerFieldID, fields[tempPlayerFieldID].soroundedTiles[RANDOM.Next(0, fields[tempPlayerFieldID].soroundedTiles.Count)]);
     }
-    private void Action1(int whichsTurn) //P 1950 -> Really rare simulations which are not possible due to completely random player picks (Fix?)
+    private void Action1(int whichsTurn) //Really rare simulations which are not possible due to completely random player picks (Fix?)
     {
         int playerIndex = PickRandomPlayer(whichsTurn);
         int tempPlayerFieldID = players[playerIndex].PosFieldID;
@@ -233,7 +273,7 @@ class APMCS
             NonSwapMove(tempPlayerFieldID, fields[tempRandomField].tempTiles[RANDOM.Next(0, fields[tempRandomField].tempTiles.Count)]);
         }
     }
-    private void Action2(int whichsTurn) //P 900
+    private void Action2(int whichsTurn) 
     {
         int playerIndex = PickRandomPlayer(whichsTurn);
         int tempPlayerFieldID = players[playerIndex].PosFieldID;
@@ -241,14 +281,14 @@ class APMCS
         SwapMove(tempPlayerFieldID, tempSubPlayerPos);
         SwapMove(tempSubPlayerPos, fields[tempSubPlayerPos].soroundedTiles[RANDOM.Next(0, fields[tempSubPlayerPos].soroundedTiles.Count)]);
     }
-    private void Action3(int whichsTurn) //P 1300
+    private void Action3(int whichsTurn)
     {
         int playerCount = playerTeams[whichsTurn].Count;
         int a = 0;
         for (int p = RANDOM.Next(0, playerCount); a < playerCount; p++)
         {
             int tempField = playerTeams[whichsTurn][p].PosFieldID;
-            if (HasFieldVerticalMovementOptions(tempField))
+            if (!playerTeams[whichsTurn][p].Null && HasFieldVerticalMovementOptions(tempField))
             {
                 for (int i = 0; i < 3; i++)
                 {
@@ -266,12 +306,20 @@ class APMCS
     private void Action4(int whichsTurn)
     {
         int playerPos = players[PickRandomPlayer(whichsTurn)].PosFieldID;
-        Console.Write(playerPos);
         
         for (int i = fields[playerPos].horizontalAttackSorou.Count-1; i > -1; i--)
             DamagePlayer(fields[fields[playerPos].horizontalAttackSorou[i]].PlayerID, whichsTurn);
     }
 
+    #endregion
+
+    #region ACTION HANDLING
+
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="playerID"></param>
+    /// <param name="immuneTeam"></param>
     private void DamagePlayer(int playerID, int immuneTeam)
     {
         if (players[playerID].Team == immuneTeam) return;
@@ -283,15 +331,20 @@ class APMCS
             int tempPlayerPos = players[playerID].PosFieldID;
             fields[tempPlayerPos].PlayerID = 0;
             fields[tempPlayerPos].FieldState = Field.State.Normal;
+            if (--Simulation_Player_Count[players[playerID].Team] == 0) Simulation_Terminal_State = true;
         }
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="whichsTurn"></param>
+    /// <returns></returns>
     private int PickRandomPlayer(int whichsTurn)
     {
         int count = playerTeams[whichsTurn].Count;
         int random = RANDOM.Next(0, count);
-        while(true)
-        {
+        while(true) { 
             if (!playerTeams[whichsTurn][random].Null) return playerTeams[whichsTurn][random].ID;
 
             if (++random == count) random = 0;
@@ -315,6 +368,8 @@ class APMCS
         players[tempPlayer].PosFieldID = field1;
         fields[field1].FieldState = tempState;
         fields[field1].PlayerID = tempPlayer;
+
+        TridonCheck();
     }
 
     /// <summary>
@@ -331,6 +386,19 @@ class APMCS
         fields[endField].PlayerID = fields[startField].PlayerID;
         fields[startField].FieldState = Field.State.Normal;
         fields[startField].PlayerID = 0;
+
+        TridonCheck();
+    }
+
+    /// <summary>
+    /// 
+    /// </summary>
+    private void TridonCheck()
+    {
+        if (players[fields[21].PlayerID].Null) return;
+
+        isTridonOnBoard = false;
+        if (++collectedTridons[players[fields[21].PlayerID].Team] == 3) Simulation_Terminal_State = true;
     }
 
     #endregion
@@ -350,37 +418,27 @@ class APMCS
     }
 
     /// <summary>
-    /// 
-    /// </summary>
-    private int TerminalState()
-    {
-        //Vermutlich sogar nicht nötig... (vllt Update Terminal State oder so)
-
-        return 0;
-    }
-
-    /// <summary>
-    /// 
-    /// </summary>
-    private int EvaluateBoard()
-    {
-
-
-        return 0;
-    }
-
-    /// <summary>
     /// Sets the players back to their spawn position.
     /// </summary>
     private void PlayerReset()
     {
+        Simulation_Player_Count[0] = playerTeam1Spawns.Count;
+        Simulation_Player_Count[1] = playerTeam2Spawns.Count;
+
+        for (int i = 1; i < players.Count; i++)
+        {
+            fields[players[i].PosFieldID].FieldState = Field.State.Normal;
+            fields[players[i].PosFieldID].PlayerID = 0;
+        }
+
         for (int i = 1; i < players.Count; i++)
         {
             players[i].Null = false;
             players[i].Lives = playersCopy[i].Lives;
             players[i].ShieldUntilTurn = playersCopy[i].ShieldUntilTurn;
-            //Custom Reset
-            //SwapMove(players[i].PosFieldID, playerSpawns[i]);
+            players[i].PosFieldID = playerSpawns[i];
+            fields[playerSpawns[i]].PlayerID = i;
+            fields[playerSpawns[i]].FieldState = (players[i].Team == 0 ? Field.State.BluePlayer : Field.State.GreenPlayer);
         }
     }
 
@@ -528,8 +586,12 @@ class APMCS
     /// </summary>
     private void DrawBoard()
     {
-        Console_Write("         {ROUND - " + round + "} ", ConsoleColor.DarkGreen);
-        Console_Write(" {Turn - " + turn + "}", ConsoleColor.DarkGreen);
+        var tempConsoleColor = ConsoleColor.Green;
+        if ((round + turn) % 2 == 0) tempConsoleColor = ConsoleColor.Blue;
+        Console_Write(" (" + collectedTridons[0].ToString() + ")", ConsoleColor.Blue);
+        Console_Write("     {ROUND - " + round + "} ", tempConsoleColor);
+        Console_Write(" {Turn - " + turn + "}     ", tempConsoleColor);
+        Console_Write("(" + collectedTridons[0].ToString() + ")", ConsoleColor.Green);
         for (int h = 0; h < heigth; h++)
         {
             for (int w = 0; w < width; w++)
@@ -542,7 +604,13 @@ class APMCS
                     continue;
                 }
 
-                if (fields[tempField].FieldState == Field.State.Normal) Console_Write("■" + fields[tempField].horizontalAttackSorou.Count, ConsoleColor.White);
+                if(tempField == 21 && isTridonOnBoard)
+                {
+                    Console_Write("()", ConsoleColor.Yellow);
+                    continue;
+                }
+
+                if (fields[tempField].FieldState == Field.State.Normal) Console_Write("■■", ConsoleColor.White);
                 else if (fields[tempField].FieldState == Field.State.Blocked) Console_Write("##", ConsoleColor.Magenta);
                 else if (fields[tempField].FieldState == Field.State.BluePlayer)
                 {
