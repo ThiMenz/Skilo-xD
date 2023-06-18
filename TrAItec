@@ -36,13 +36,15 @@ static class TrAI
 
 //=> [FINISHED] Working throw logic (int[2] underAttk-Fields -> Dequeue after every random action; even after the throw action)
 
-//=> Manipulate (similar to Action1)
+//=> [FINISHED] Manipulate (similar to Action1)
 
-//=> Place / Destroy
+//=> [FINISHED] Place / Destroy
 
-//=> Shield (Just setting Player.ShieldUntilTurn value & round!!) + Visuals
+//=> [FINISHED] Shield (Just setting Player.ShieldUntilTurn value & round!!) + Visuals
 
 //-----------------------
+
+//=> Get Card Selection to work
 
 //=> Methods Commentary (espacially completing summaries)
 
@@ -81,11 +83,11 @@ class APMCS
     //Setup
     private int round = 1, turn = 19;
 
-    private List<int> setupBlockades = new List<int>() { 10, 18, 19, 22, 23, 24, 32, 34 };
+    private List<int> setupBlockades = new List<int>() { 10, 18, 19, 22, 23, 24, 32, 34, 21 };
     private List<int> playerTeam1Spawns = new List<int>() { 15, 16, 12 }, playerTeam2Spawns = new List<int>() { 42, 14, 41 },
         playerLives1Setups = new List<int>() { 2, 2, 2 }, playerLives2Setups = new List<int>() { 2, 2, 2 };
     private int[] collectedTridons = new int[2] { 0, 0 };
-    private bool isTridonOnBoard = true;
+    private bool isTridonOnBoard = false;
     private List<int> playerSpawns = new List<int>();
 
     //High Usage Runtime
@@ -110,6 +112,8 @@ class APMCS
     private List<List<int>> APMCS_Options = new List<List<int>>();
     private List<int[]> APMCS_KnownCardBoundaries = new List<int[]>();
 
+    private int externalBlockedTiles = 0;
+
     private int[] larr = new int[12] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
 
     #endregion
@@ -125,7 +129,7 @@ class APMCS
         List<int[]> temporaryBoundaries = new List<int[]>();
         for (int i = 0; i < 19; i++)
         {
-            temporaryBoundaries.Add(new int[] { 1, 2 });
+            temporaryBoundaries.Add(new int[] { 0, 12 });
         }
         ApproximatedPrincipaledMonteCargoSearch(temporaryBoundaries);
     }
@@ -143,6 +147,7 @@ class APMCS
         int whichsTurnCopy = whichsTurn;
         int roundCopy = round;
         int turnCopy = turn;
+        int ebtCopy = externalBlockedTiles;
         bool tridonCopy = isTridonOnBoard;
         int[] tridonsCounterCopy = new int[2] { collectedTridons[0], collectedTridons[1] };
         APMCS_KnownCardBoundaries = knownCardBoundaries;
@@ -188,6 +193,7 @@ RollOutEnd:
             collectedTridons[0] = tridonsCounterCopy[0];
             collectedTridons[1] = tridonsCounterCopy[1];
             isTridonOnBoard = tridonCopy;
+            externalBlockedTiles = ebtCopy;
 
             PlayerReset();
             BlockadeReset();
@@ -246,34 +252,25 @@ RollOutEnd:
     /// <param name="whichsTurn"></param>
     private void PlayRandomAction(int cardID, int whichsTurn)
     {
-        //APMCS_Options[whichsTurn].Remove(cardID);
+        APMCS_Options[whichsTurn].Remove(cardID);
         switch (cardID)
         {
             //[BLUE] MOVEMENTS
-            case 0: Action2(whichsTurn); break; //Move-1-Swap
-
-            case 1: Action8(whichsTurn); break; //Move-2-Non-Swap
-
+            case 0: Action0(whichsTurn); break; //Move-1-Swap
+            case 1: Action1(whichsTurn); break; //Move-2-Non-Swap
             case 2: Action2(whichsTurn); break; //Move-2-Swap
-
             case 3: Action3(whichsTurn); break; //Move-3-Vertically
 
             //[RED] ATTACKS
             case 4: Action4(whichsTurn); break; // Horizontal Attack
-
-            case 5: Action4(whichsTurn); break; // Vertical Attack
-
-            case 6: Action4(whichsTurn); break; // Jump
-
+            case 5: Action5(whichsTurn); break; // Vertical Attack
+            case 6: Action6(whichsTurn); break; // Jump
             case 7: Action7(whichsTurn); break; // Throw
 
             //[GREEN] ABILITIES
             case 8: Action8(whichsTurn); break; //Manipulate
-
             case 9: Action9(whichsTurn); break; //Shield
-
             case 10: Action10(whichsTurn); break; //Place
-
             case 11: Action11(whichsTurn); break; //Destroy
         }
     }
@@ -396,15 +393,57 @@ RollOutEnd:
     }
     private void Action9(int whichsTurn)
     {
-        
+        int pickedPlayer = PickRandomPlayer(whichsTurn);
+        players[pickedPlayer].ShieldInRound = round;
+        players[pickedPlayer].ShieldUntilTurn = turn + 2;
     }
     private void Action10(int whichsTurn)
     {
-        
+        if (externalBlockedTiles == 0) return;
+
+        int playerCount = playerTeams[whichsTurn].Count;
+        int a = 0;
+        for (int p = RANDOM.Next(0, playerCount); a < playerCount; p++)
+        {
+            if (!players[p].Null)
+            {
+                int tempPlayerPosField = playerTeams[whichsTurn][p].PosFieldID;
+                UpdateFieldTempSorouToEmpty(tempPlayerPosField);
+                if (fields[tempPlayerPosField].tempTiles.Count != 0)
+                {
+                    int tempTile = fields[tempPlayerPosField].tempTiles[RANDOM.Next(0, fields[tempPlayerPosField].tempTiles.Count)];
+                    fields[tempTile].FieldState = Field.State.Blocked;
+                    if(tempTile == 21) isTridonOnBoard = false;
+                    externalBlockedTiles--;
+                    return;
+                }
+            }
+            a++;
+            if (p == playerCount - 1) p = -1;
+        }
     }
     private void Action11(int whichsTurn)
     {
-        
+        int playerCount = playerTeams[whichsTurn].Count;
+        int a = 0;
+        for (int p = RANDOM.Next(0, playerCount); a < playerCount; p++)
+        {
+            if (!players[p].Null)
+            {
+                int tempPlayerPosField = playerTeams[whichsTurn][p].PosFieldID;
+                UpdateFieldTempSorouToBlocked(tempPlayerPosField);
+                if (fields[tempPlayerPosField].tempTiles.Count != 0)
+                {
+                    int tempTile = fields[tempPlayerPosField].tempTiles[RANDOM.Next(0, fields[tempPlayerPosField].tempTiles.Count)];
+                    fields[tempTile].FieldState = Field.State.Normal;
+                    if (tempTile == 21) isTridonOnBoard = true;
+                    externalBlockedTiles++;
+                    return;
+                }
+            }
+            a++;
+            if (p == playerCount - 1) p = -1;
+        }
     }
 
     #endregion
@@ -448,14 +487,13 @@ RollOutEnd:
     {
         if (players[playerID].Team == immuneTeam) return;
         if (players[playerID].Null) return;
-        if (round == players[playerID].ShieldInRound && turn <= players[playerID].ShieldUntilTurn) return;
+        if (round == players[playerID].ShieldInRound && players[playerID].ShieldUntilTurn > turn) return;
         if (--players[playerID].Lives == 0)
         {
             players[playerID].Null = true;
             int tempPlayerPos = players[playerID].PosFieldID;
             fields[tempPlayerPos].PlayerID = 0;
             fields[tempPlayerPos].FieldState = Field.State.Normal;
-            Console.WriteLine(Simulation_Player_Count[players[playerID].Team]);
             if (--Simulation_Player_Count[players[playerID].Team] == 0) {
                 Simulation_Terminal_State = true; 
             }
@@ -545,6 +583,14 @@ RollOutEnd:
                 fields[field].tempTiles.Add(fields[field].soroundedTiles[f]);
     }
 
+    private void UpdateFieldTempSorouToBlocked(int field)
+    {
+        fields[field].tempTiles.Clear();
+        for (int f = 0; f < fields[field].soroundedTiles.Count; f++)
+            if (fields[fields[field].soroundedTiles[f]].FieldState == Field.State.Blocked)
+                fields[field].tempTiles.Add(fields[field].soroundedTiles[f]);
+    }
+
     /// <summary>
     /// Sets the players back to their spawn position.
     /// </summary>
@@ -611,6 +657,7 @@ RollOutEnd:
                 IDer++;
             }
         }
+        externalBlockedTiles = 11 - setupBlockades.Count;
 
         //---> Set Setup Blockades & Player Positions
         for (int i = 0; i < setupBlockades.Count; i++)
@@ -753,14 +800,15 @@ RollOutEnd:
                 else if (fields[tempField].FieldState == Field.State.Blocked) Console_Write("##", ConsoleColor.Magenta);
                 else if (fields[tempField].FieldState == Field.State.BluePlayer)
                 {
-                    //players[fields[tempField].playerID].Lives 
                     string fieldString = (players[fields[tempField].PlayerID].Lives == 2) ? "[]" : "{}";
-                    if (players[fields[tempField].PlayerID].ShieldInRound == round && players[fields[tempField].PlayerID].ShieldUntilTurn <= turn) fieldString = fieldString[0] + ">";
+                    if (players[fields[tempField].PlayerID].ShieldInRound == round && players[fields[tempField].PlayerID].ShieldUntilTurn > turn) fieldString = fieldString[0] + ">";
                     Console_Write(fieldString, (Simulation_Throw_Queue[0] == players[fields[tempField].PlayerID].PosFieldID) ? ConsoleColor.Red : ConsoleColor.Blue);
                 }
                 else if (fields[tempField].FieldState == Field.State.GreenPlayer)
                 {
-                    Console_Write((players[fields[tempField].PlayerID].Lives == 2) ? "[]" : "{}", (Simulation_Throw_Queue[0] == players[fields[tempField].PlayerID].PosFieldID) ? ConsoleColor.Red : ConsoleColor.Green);
+                    string fieldString = (players[fields[tempField].PlayerID].Lives == 2) ? "[]" : "{}";
+                    if (players[fields[tempField].PlayerID].ShieldInRound == round && players[fields[tempField].PlayerID].ShieldUntilTurn > turn) fieldString = fieldString[0] + ">";
+                    Console_Write(fieldString, (Simulation_Throw_Queue[0] == players[fields[tempField].PlayerID].PosFieldID) ? ConsoleColor.Red : ConsoleColor.Green);
                 }
             }
             Console.WriteLine();
