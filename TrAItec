@@ -44,11 +44,11 @@ static class TrAI
 
 //-----------------------
 
-//=> Get Card Selection to work
+//=> [FINISHED_REWORK_NEEDED] Get Card Selection to work
 
 //=> Methods Commentary (espacially completing summaries)
 
-//=> Evaluation Function & Sums
+//=> [FINISHED] Evaluation Function & Sums
 
 //-----------------------
 
@@ -64,7 +64,7 @@ class APMCS
 
     //Predefined Consts / Values
     private const float heigth = 15, width = 29;
-    private List<int[]> cardTypeBoundings = new List<int[]>() { new int[] { 0, 4 }, new int[] { 4, 8 }, new int[] { 8, 12 } };
+
     private List<Card> cards = new List<Card>() {
         new Card() { CardID = 0,  TypeID = 0, Name = "Horizontal Attack" },
         new Card() { CardID = 1,  TypeID = 0, Name = "Vertical Attack" },
@@ -80,15 +80,25 @@ class APMCS
         new Card() { CardID = 11, TypeID = 2, Name = "Manipulate" }
     };
 
+    private List<int[]> larr = new List<int[]>() { new int[4] { 0, 1, 2, 3 }, new int[4] { 4, 5, 6, 7 }, new int[4] { 8, 9, 10, 11 } };
+
+    private const int FACTOR_Player = 50;
+    private const int FACTOR_Protection = 40;
+    private const int FACTOR_Tridon = 40;
+    private readonly int[] FACTOR_Fields = { 0, 2, 5, 8, 6 }; //Die 5 Ringe bis zur 21 (zum potenziellen Tridon)
+    private readonly List<int[]> FieldFactors = new List<int[]>() { new int[] { 0, 1, 2 }, new int[] { 3, 4, 5, 6, 7, 11, 12, 17, 18 }, new int[] { 8, 9, 10, 13, 16, 19 }, new int[] { 14, 15, 20 } };
+
     //Setup
     private int round = 1, turn = 19;
 
     private List<int> setupBlockades = new List<int>() { 10, 18, 19, 22, 23, 24, 32, 34, 21 };
-    private List<int> playerTeam1Spawns = new List<int>() { 15, 16, 12 }, playerTeam2Spawns = new List<int>() { 42, 14, 41 },
-        playerLives1Setups = new List<int>() { 2, 2, 2 }, playerLives2Setups = new List<int>() { 2, 2, 2 };
+    private List<int> playerTeam1Spawns = new List<int>() { 15, 16, 12 }, 
+        playerTeam2Spawns = new List<int>() { 42, 14, 41 }, 
+        playerLives1Setups = new List<int>() { 2, 2, 2 },
+        playerLives2Setups = new List<int>() { 2, 2, 2 };
+
     private int[] collectedTridons = new int[2] { 0, 0 };
     private bool isTridonOnBoard = false;
-    private List<int> playerSpawns = new List<int>();
 
     //High Usage Runtime
     private List<Field> fields = new List<Field>();
@@ -97,6 +107,7 @@ class APMCS
     private List<Player> players = new List<Player>();
     private List<Player> playersCopy = new List<Player>();
     private List<List<Player>> playerTeams = new List<List<Player>>();
+    private List<int> playerSpawns = new List<int>();
 
     private List<List<Card>> playedCards = new List<List<Card>>();
     private List<List<List<int>>> cardOptions = new List<List<List<int>>>(); //[PLAYER][TYPE][CARD]
@@ -109,12 +120,12 @@ class APMCS
     private int[] Simulation_Player_Count = new int[2];
     private int[] Simulation_Throw_Queue = new int[2] { -1, -1 };
 
-    private List<List<int>> APMCS_Options = new List<List<int>>();
-    private List<int[]> APMCS_KnownCardBoundaries = new List<int[]>();
-
     private int externalBlockedTiles = 0;
 
-    private int[] larr = new int[12] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+    private List<List<List<int>>> APMCS_TypeOptions = new List<List<List<int>>>();
+
+    //Debug
+    private bool DEBUG_CardOptions = false;
 
     #endregion
 
@@ -127,9 +138,14 @@ class APMCS
     {
         BoardSetup();
         List<int[]> temporaryBoundaries = new List<int[]>();
-        for (int i = 0; i < 19; i++)
+        for (int i = 0; i < 18; i++)
         {
-            temporaryBoundaries.Add(new int[] { 0, 12 });
+            if (i == 1)
+            {
+                temporaryBoundaries.Add(new int[] { 0, 1, 2 });
+                continue;
+            }
+            temporaryBoundaries.Add(new int[] { 0, 1, 2 });
         }
         ApproximatedPrincipaledMonteCargoSearch(temporaryBoundaries);
     }
@@ -138,11 +154,12 @@ class APMCS
     /// 
     /// </summary>
     /// <param name="knownCardBoundaries">An list of arrays which is showing the known limitations for the played cards</param>
-    private void ApproximatedPrincipaledMonteCargoSearch(List<int[]> knownCardBoundaries)
+    private void ApproximatedPrincipaledMonteCargoSearch(List<int[]> knownCardTypeBoundaries)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
         //Pre Calculations & Saves
+        int evaluationSum = 0;
         int whichsTurn = (round + turn) % 2;
         int whichsTurnCopy = whichsTurn;
         int roundCopy = round;
@@ -150,19 +167,19 @@ class APMCS
         int ebtCopy = externalBlockedTiles;
         bool tridonCopy = isTridonOnBoard;
         int[] tridonsCounterCopy = new int[2] { collectedTridons[0], collectedTridons[1] };
-        APMCS_KnownCardBoundaries = knownCardBoundaries;
+        
 
         //Board evaluations count
-        for (int i = 0; i < 1; i++)
+        for (int i = 0; i < 400000; i++)
         {
             //Current Round Turn Rolling (Full Round)
             ClearAPMCSOptions();
             for (int t = 0; t < 18; t++)
             {
-                DrawBoard();
+                //DrawBoard();
                 if (Simulation_Terminal_State) goto RollOutEnd;
                 turn++;
-                whichsTurn = PrincipaledRandomMove(whichsTurn, APMCS_KnownCardBoundaries[t]);
+                whichsTurn = PrincipaledRandomMove(whichsTurn, knownCardTypeBoundaries[t][RANDOM.Next(0, knownCardTypeBoundaries[t].Length)]);
                 ThrowCalcs();
             }
 
@@ -174,15 +191,15 @@ class APMCS
             ClearAPMCSOptions();
             for (int t = 0; t < 4; t++)
             {
-                DrawBoard();
+                //DrawBoard();
                 if (Simulation_Terminal_State) goto RollOutEnd;
                 turn++;
-                whichsTurn = PrincipaledRandomMove(whichsTurn, APMCS_KnownCardBoundaries[18]);
+                whichsTurn = PrincipaledRandomMove(whichsTurn, RANDOM.Next(0, APMCS_TypeOptions[whichsTurn].Count));
                 ThrowCalcs();
             }
-RollOutEnd:
+        RollOutEnd:
             //Evaluate Board
-
+            evaluationSum += EvaluateBoard();
 
             //Reset Board
             Simulation_Terminal_State = false;
@@ -202,6 +219,7 @@ RollOutEnd:
         stopwatch.Stop();
 
         DrawBoard();
+        Console.WriteLine(evaluationSum);
         Console.WriteLine("Der Prozess hat " + stopwatch.ElapsedMilliseconds + " Millisekunden benötigt ¯\\_(o)_/¯");
     }
 
@@ -211,9 +229,10 @@ RollOutEnd:
     /// <param name="whichTeamsTurn">0 = Blue / 1 = Green</param>
     /// <param name="cardBoundaries">An array which includes the lowest and highest possible card index</param>
     /// <returns></returns>
-    private int PrincipaledRandomMove(int whichTeamsTurn, int[] cardBoundaries)
+    private int PrincipaledRandomMove(int whichTeamsTurn, int type)
     {
-        PlayRandomAction(APMCS_Options[whichTeamsTurn][RANDOM.Next(cardBoundaries[0], cardBoundaries[1])], whichTeamsTurn);
+        if (type >= APMCS_TypeOptions[whichTeamsTurn].Count) type = RANDOM.Next(0, APMCS_TypeOptions[whichTeamsTurn].Count);
+        PlayRandomAction(APMCS_TypeOptions[whichTeamsTurn][type][RANDOM.Next(0, APMCS_TypeOptions[whichTeamsTurn][type].Count)], type, whichTeamsTurn);
 
         isTridonOnBoard = isTridonOnBoard && fields[21].FieldState == Field.State.Normal;
             
@@ -236,9 +255,22 @@ RollOutEnd:
     /// </summary>
     private int EvaluateBoard()
     {
+        int[] scores = new int[2];
 
+        for (int p = 0; p < players.Count; p++)
+        {
+            if (players[p].Null) continue;
+            int t = players[p].Team;
+            //Console.WriteLine(t);
+            scores[t] += FACTOR_Player;
+            if (players[p].Lives == 2) scores[t] += FACTOR_Protection;
+            scores[t] += FACTOR_Fields[fields[players[p].PosFieldID].Factor];
+        }
 
-        return 0;
+        scores[0] += collectedTridons[0] * FACTOR_Tridon;
+        scores[1] += collectedTridons[1] * FACTOR_Tridon;
+
+        return (scores[0] - scores[1]);
     }
 
     #endregion
@@ -250,9 +282,10 @@ RollOutEnd:
     /// </summary>
     /// <param name="cardID">The ID of the played card</param>
     /// <param name="whichsTurn"></param>
-    private void PlayRandomAction(int cardID, int whichsTurn)
+    private void PlayRandomAction(int cardID, int cardType, int whichsTurn)
     {
-        APMCS_Options[whichsTurn].Remove(cardID);
+        APMCS_TypeOptions[whichsTurn][cardType].Remove(cardID);
+        if (APMCS_TypeOptions[whichsTurn][cardType].Count == 0) APMCS_TypeOptions[whichsTurn].RemoveAt(cardType);
         switch (cardID)
         {
             //[BLUE] MOVEMENTS
@@ -646,7 +679,7 @@ RollOutEnd:
             {
                 if (amount == 7) backWards = true;
 
-                fields.Add(new Field() { Pos = new Field.Position() { x = column * 2 + 2, y = 8 - amount + a * 2 }, FieldState = Field.State.Normal, Column = column, Diagonal = IDer - a, ID = fields.Count, Heigth = a });
+                fields.Add(new Field() { Pos = new Field.Position() { x = column * 2 + 2, y = 8 - amount + a * 2 }, FieldState = Field.State.Normal, Column = column, Diagonal = IDer - a, ID = fields.Count, Heigth = a, Factor = GetFactorOfFieldByID(fields.Count) });
                 fieldColumns[column].Add(fields[fields.Count - 1]);
             }
 
@@ -763,6 +796,17 @@ RollOutEnd:
         }
     }
 
+    private int GetFactorOfFieldByID(int ID)
+    {
+        if (ID > 21) ID = 21 - ID + 21;
+
+        for (int i = 0; i < 4; i++)
+            if (FieldFactors[i].Contains(ID))
+                return i;
+
+        return 4;
+    }
+
     #endregion
 
     #region VISUALS
@@ -796,7 +840,7 @@ RollOutEnd:
                     continue;
                 }
 
-                if (fields[tempField].FieldState == Field.State.Normal) Console_Write("■■", ConsoleColor.White);
+                if (fields[tempField].FieldState == Field.State.Normal) Console_Write("■" + fields[tempField].Factor, ConsoleColor.White);
                 else if (fields[tempField].FieldState == Field.State.Blocked) Console_Write("##", ConsoleColor.Magenta);
                 else if (fields[tempField].FieldState == Field.State.BluePlayer)
                 {
@@ -813,6 +857,21 @@ RollOutEnd:
             }
             Console.WriteLine();
         }
+
+        if (!DEBUG_CardOptions) return;
+
+        for(int player = 0; player < 2; player++)
+        {
+            for (int c1 = 0; c1 < APMCS_TypeOptions[player].Count; c1++)
+            {
+                Console.Write("{ ");
+                for (int card = 0; card < APMCS_TypeOptions[player][c1].Count; card++)
+                    Console.Write(APMCS_TypeOptions[player][c1][card] + ",");
+                Console.Write(" } ");
+            }
+            Console.WriteLine("");
+        }
+
     }
 
     #endregion
@@ -851,9 +910,13 @@ RollOutEnd:
     /// </summary>
     private void ClearAPMCSOptions()
     {
-        APMCS_Options.Clear();
-        APMCS_Options.Add(new List<int>(larr));
-        APMCS_Options.Add(new List<int>(larr));
+        APMCS_TypeOptions.Clear();
+        APMCS_TypeOptions.Add(new List<List<int>>(3));
+        APMCS_TypeOptions.Add(new List<List<int>>(3));
+        for (int i = 0; i < 3; i++) {
+            APMCS_TypeOptions[0].Add(new List<int>(larr[i]));
+            APMCS_TypeOptions[1].Add(new List<int>(larr[i]));
+        }
     }
 
     /// <summary>
@@ -890,7 +953,7 @@ public class Field
 {
     public Position Pos;
     public State FieldState;
-    public int Column, Diagonal, Heigth, ID, PlayerID;
+    public int Column, Diagonal, Heigth, ID, PlayerID, Factor;
     public List<int> soroundedTiles = new List<int>(), tempTiles = new List<int>(), verticalSorou = new List<int>(), horizontalAttackSorou = new List<int>();
     public List<int> upFieldsVertically = new List<int>(), downFieldsVertically = new List<int>();
     public List<int[]> jumpFields = new List<int[]>();
