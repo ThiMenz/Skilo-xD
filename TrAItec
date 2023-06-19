@@ -44,7 +44,7 @@ static class TrAI
 
 //-----------------------
 
-//=> [FINISHED_REWORK_NEEDED] Get Card Selection to work
+//=> [FINISHED_REWORK_NEEDED] Get Card Selection to work !!!
 
 //=> Methods Commentary (espacially completing summaries)
 
@@ -137,24 +137,26 @@ class APMCS
     public APMCS()
     {
         BoardSetup();
-        List<int[]> temporaryBoundaries = new List<int[]>();
+        List<int> temporaryCards = new List<int>(), temporaryTypes = new List<int>();
         for (int i = 0; i < 18; i++)
         {
+            temporaryCards.Add(-1);
+            temporaryTypes.Add(-1);
+
             if (i == 1)
             {
-                temporaryBoundaries.Add(new int[] { 0, 1, 2 });
+                temporaryCards[temporaryCards.Count-1] = 5;
                 continue;
             }
-            temporaryBoundaries.Add(new int[] { 0, 1, 2 });
         }
-        ApproximatedPrincipaledMonteCargoSearch(temporaryBoundaries);
+        ApproximatedPrincipaledMonteCargoSearch(temporaryCards, temporaryTypes);
     }
 
     /// <summary>
     /// 
     /// </summary>
     /// <param name="knownCardBoundaries">An list of arrays which is showing the known limitations for the played cards</param>
-    private void ApproximatedPrincipaledMonteCargoSearch(List<int[]> knownCardTypeBoundaries)
+    private void ApproximatedPrincipaledMonteCargoSearch(List<int> knownCards, List<int> knownCardTypes)
     {
         Stopwatch stopwatch = Stopwatch.StartNew();
 
@@ -179,7 +181,7 @@ class APMCS
                 //DrawBoard();
                 if (Simulation_Terminal_State) goto RollOutEnd;
                 turn++;
-                whichsTurn = PrincipaledRandomMove(whichsTurn, knownCardTypeBoundaries[t][RANDOM.Next(0, knownCardTypeBoundaries[t].Length)]);
+                whichsTurn = PrincipaledRandomMove(whichsTurn, knownCards[t], knownCardTypes[t]);
                 ThrowCalcs();
             }
 
@@ -194,7 +196,7 @@ class APMCS
                 //DrawBoard();
                 if (Simulation_Terminal_State) goto RollOutEnd;
                 turn++;
-                whichsTurn = PrincipaledRandomMove(whichsTurn, RANDOM.Next(0, APMCS_TypeOptions[whichsTurn].Count));
+                whichsTurn = PrincipaledRandomMove(whichsTurn, -1, -1);
                 ThrowCalcs();
             }
         RollOutEnd:
@@ -229,13 +231,18 @@ class APMCS
     /// <param name="whichTeamsTurn">0 = Blue / 1 = Green</param>
     /// <param name="cardBoundaries">An array which includes the lowest and highest possible card index</param>
     /// <returns></returns>
-    private int PrincipaledRandomMove(int whichTeamsTurn, int type)
+    private int PrincipaledRandomMove(int whichTeamsTurn, int card, int type)
     {
-        if (type >= APMCS_TypeOptions[whichTeamsTurn].Count) type = RANDOM.Next(0, APMCS_TypeOptions[whichTeamsTurn].Count);
-        PlayRandomAction(APMCS_TypeOptions[whichTeamsTurn][type][RANDOM.Next(0, APMCS_TypeOptions[whichTeamsTurn][type].Count)], type, whichTeamsTurn);
+        if (type == -1) type = RANDOM.Next(0, APMCS_TypeOptions[whichTeamsTurn].Count);
+        if (card == -1) card = RANDOM.Next(0, APMCS_TypeOptions[whichTeamsTurn][type].Count);
 
-        isTridonOnBoard = isTridonOnBoard && fields[21].FieldState == Field.State.Normal;
-            
+        PlayRandomAction(APMCS_TypeOptions[whichTeamsTurn][type][card], whichTeamsTurn);
+
+        APMCS_TypeOptions[whichTeamsTurn][type].Remove(card);
+        if (APMCS_TypeOptions[whichTeamsTurn][type].Count == 0) APMCS_TypeOptions[whichTeamsTurn].RemoveAt(type);
+
+        //isTridonOnBoard = isTridonOnBoard && fields[21].FieldState == Field.State.Normal;
+
         return 1 - whichTeamsTurn;
     }
 
@@ -282,10 +289,8 @@ class APMCS
     /// </summary>
     /// <param name="cardID">The ID of the played card</param>
     /// <param name="whichsTurn"></param>
-    private void PlayRandomAction(int cardID, int cardType, int whichsTurn)
+    private void PlayRandomAction(int cardID, int whichsTurn)
     {
-        APMCS_TypeOptions[whichsTurn][cardType].Remove(cardID);
-        if (APMCS_TypeOptions[whichsTurn][cardType].Count == 0) APMCS_TypeOptions[whichsTurn].RemoveAt(cardType);
         switch (cardID)
         {
             //[BLUE] MOVEMENTS
