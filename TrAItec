@@ -12,52 +12,6 @@ static class TrAI
     }
 }
 
-#region TO-DO-APMCS
-
-//THILOS IN-CODE TO-DO ->
-
-//=> [FINISHED] Vertical Movement Null-Player Fix
-
-//=> [FINISHED] Custom Reset with player lives = 0 handling
-
-//=> [FINISHED] Increase Turn Method & Board Visualizing with player turn shower
-
-//=> [FINISHED] General Tridon (Counter, Visuals, etc.)
-
-//=> [FINISHED] Tridon Checks after any movements
-
-//=> [FINISHED] Terminal State Handling
-
-//-----------------------
-
-//=> [FINISHED] "Tiles over/under tile"-List for every field (for the vertical attack)
-
-//=> [FINISHED] "Jump Tiles"-List for every field
-
-//=> [FINISHED] Working throw logic (int[2] underAttk-Fields -> Dequeue after every random action; even after the throw action)
-
-//=> [FINISHED] Manipulate (similar to Action1)
-
-//=> [FINISHED] Place / Destroy
-
-//=> [FINISHED] Shield (Just setting Player.ShieldUntilTurn value & round!!) + Visuals
-
-//-----------------------
-
-//=> [FINISHED] Get Card Selection to work !!!
-
-//=> [FINISHED] Methods Commentary (espacially completing summaries)
-
-//=> [FINISHED] Evaluation Function & Sums
-
-//-----------------------
-
-//=> Principals (ahh)
-
-//=> I/O (Input options + Output of resulting card)
-
-#endregion
-
 class APMCS
 {
     #region VARIABLES
@@ -82,10 +36,7 @@ class APMCS
         new Card() { CardID = 10, TypeID = 2, Name = "Shield" },
         new Card() { CardID = 11, TypeID = 2, Name = "Manipulate" }
     };
-
-    private List<int[]> larr = new List<int[]>() { new int[4] { 0, 1, 2, 3 }, new int[4] { 4, 5, 6, 7 }, new int[4] { 8, 9, 10, 11 } };
     private readonly int[] APMCS_StandardOptions = new int[12] { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
-    private readonly int[] APMCS_StandardBoundaries = new int[4] { 0, 4, 8, 12 };
 
     private const int FACTOR_Player = 50;
     private const int FACTOR_Protection = 40;
@@ -114,10 +65,6 @@ class APMCS
     private List<List<Player>> playerTeams = new List<List<Player>>();
     private List<int> playerSpawns = new List<int>();
 
-    private List<List<Card>> playedCards = new List<List<Card>>();
-    private List<List<List<int>>> cardOptions = new List<List<List<int>>>(); //[PLAYER][TYPE][CARD]
-    private List<List<List<int>>> cardOptionsTurn1 = new List<List<List<int>>>();
-
     //Runtime
     private System.Random RANDOM = new System.Random();
 
@@ -129,7 +76,6 @@ class APMCS
 
     private int externalBlockedTiles = 0;
 
-    private List<List<List<int>>> APMCS_TypeOptions = new List<List<List<int>>>();
     private List<List<int>> APMCS_CardOptions = new List<List<int>>();
     private List<int[]> APMCS_ResetOptions = new List<int[]>();
 
@@ -140,9 +86,6 @@ class APMCS
 
     #region MAIN
 
-    /// <summary>
-    /// 
-    /// </summary>
     public APMCS()
     {
         BoardSetup();
@@ -164,19 +107,19 @@ class APMCS
         {
             temporaryCards[0] = i;
 
-            Console.WriteLine("[" + ((i < 10) ? "0" : "") + i + "] EVAL >> " + ApproximatedPrincipaledMonteCargoSearch(temporaryCards, temporaryTypes));
+            Console.WriteLine("[" + ((i < 10) ? "0" : "") + i + "] EVAL >> " + ApproximatedPrincipaledMonteCargoRollout(temporaryCards, temporaryTypes));
         }
         DrawBoard();
     }
 
     /// <summary>
-    /// 
+    /// Evaluates a position by playing the game under specific rules a predefinited amount of times a predefined amount of turns further.
     /// </summary>
-    /// <param name="knownCardBoundaries">An list of arrays which is showing the known limitations for the played cards</param>
-    private double ApproximatedPrincipaledMonteCargoSearch(List<int> knownCards, List<int> knownCardTypes)
+    /// <param name="knownCards">A list of the cards which are known.</param>
+    /// <param name="knownCardTypes">A list of the card types which are known. (if card is known, the specific type value needs still to be -1)</param>
+    /// <returns>The final average evaluation of the position with the specific parameters.</returns>
+    private double ApproximatedPrincipaledMonteCargoRollout(List<int> knownCards, List<int> knownCardTypes)
     {
-        Stopwatch stopwatch = Stopwatch.StartNew();
-
         //Pre Calculations & Saves
         int evaluationSum = 0;
         int whichsTurn = (round + turn) % 2;
@@ -215,7 +158,6 @@ class APMCS
             //Current Round Turn Rolling (Full Round)
             APMCS_CardOptions[0] = new List<int>(APMCS_ResetOptions[0]);
             APMCS_CardOptions[1] = new List<int>(APMCS_ResetOptions[1]);
-            //-> Hier muss die vordefindete APMCS List geladen werden (without card defines)
             for (int t = 0; t < 18; t++)
             {
                 //DrawBoard();
@@ -225,7 +167,7 @@ class APMCS
                 ThrowCalcs();
             }
 
-            //Following Round Turn Rolling (Portion of Round)
+            //Following Round Turn Rolling
             turn = 1;
             round++;
             whichsTurn = 1 - whichsTurn;
@@ -233,7 +175,6 @@ class APMCS
             ResetTypeBoundariesToStandard();
             APMCS_CardOptions[0] = new List<int>(APMCS_StandardOptions);
             APMCS_CardOptions[1] = new List<int>(APMCS_StandardOptions);
-            //ClearAPMCSOptions(); //-> Hier muss die Standard APMCS List geladen werden (full Options)
             for (int t = 0; t < RolloutRoundTwoIntensity; t++)
             {
                 //DrawBoard();
@@ -264,23 +205,16 @@ class APMCS
             BlockadeReset();
         }
 
-        stopwatch.Stop();
-
-        Console.Write("(" + stopwatch.ElapsedMilliseconds + "ms) ");
-
-        //DrawBoard();
-        //Console.WriteLine(evaluationSum / 200000f);
-        //Console.WriteLine("Der Prozess hat " + stopwatch.ElapsedMilliseconds + " Millisekunden benötigt ¯\\_(o)_/¯");
-
         return evaluationSum / (double)RolloutIntensity;
     }
 
     /// <summary>
-    /// Plays one rollout move from the APMCS
+    /// Plays one rollout move from the APMCS.
     /// </summary>
     /// <param name="whichTeamsTurn">0 = Blue / 1 = Green</param>
-    /// <param name="cardBoundaries">An array which includes the lowest and highest possible card index</param>
-    /// <returns></returns>
+    /// <param name="card">The card which should get used (-1 if undefined)</param>
+    /// <param name="type">The type of the card which should get used (-1 if undefined, or if the specific card is defined)</param>
+    /// <returns>The teams ID which turns next.</returns>
     private int PrincipaledRandomMove(int whichTeamsTurn, int card, int type)
     {
         if (type != -1) card = RANDOM.Next(Simulation_Type_Boundaries[whichTeamsTurn][type], Simulation_Type_Boundaries[whichTeamsTurn][type + 1]);
@@ -297,23 +231,11 @@ class APMCS
         APMCS_CardOptions[whichTeamsTurn].RemoveAt(card);
         UpdateTypeBoundaries(card, whichTeamsTurn);
 
-        //PlayRandomAction(APMCS_TypeOptions[whichTeamsTurn][type][card], whichTeamsTurn);
-
-
-
-        //APMCS_TypeOptions[whichTeamsTurn][type].Remove(card);
-        //if (APMCS_TypeOptions[whichTeamsTurn][type].Count == 0)
-        //{
-        //    APMCS_TypeOptions[whichTeamsTurn].RemoveAt(type);
-        //}
-
-        //isTridonOnBoard = isTridonOnBoard && fields[21].FieldState == Field.State.Normal;
-
         return 1 - whichTeamsTurn;
     }
 
     /// <summary>
-    /// 
+    /// Handling the throw queue. (Dequeing & Attacking if required)
     /// </summary>
     private void ThrowCalcs()
     {
@@ -324,8 +246,9 @@ class APMCS
     }
 
     /// <summary>
-    /// 
+    /// Evaluates the current board.
     /// </summary>
+    /// <returns>The evaluation value -> negative values are favouring the green team.</returns>
     private int EvaluateBoard()
     {
         int[] scores = new int[2];
@@ -334,7 +257,6 @@ class APMCS
         {
             if (players[p].Null) continue;
             int t = players[p].Team;
-            //Console.WriteLine(t);
             scores[t] += FACTOR_Player;
             if (players[p].Lives == 2) scores[t] += FACTOR_Protection;
             scores[t] += FACTOR_Fields[fields[players[p].PosFieldID].Factor];
@@ -354,7 +276,7 @@ class APMCS
     /// Plays a random action including changing all needed board values for that specific action.
     /// </summary>
     /// <param name="cardID">The ID of the played card</param>
-    /// <param name="whichsTurn"></param>
+    /// <param name="whichsTurn">0 = Blue / 1 = Green</param>
     private void PlayRandomAction(int cardID, int whichsTurn)
     {
         switch (cardID)
@@ -380,7 +302,6 @@ class APMCS
     }
 
     //All Action Methods ->
-    //P -> Performance Value (higher = slower) -> UPDATE?
 
     private void Action0(int whichsTurn)
     {
@@ -555,11 +476,12 @@ class APMCS
     #region ACTION HANDLING
 
     /// <summary>
-    /// 
+    /// Tries to execute a jump in a random direction.
     /// </summary>
-    /// <param name="playerID"></param>
-    /// <param name="fieldID"></param>
-    /// <returns></returns>
+    /// <param name="playerID">The ID of the player which should jump.</param>
+    /// <param name="fieldID">The ID of the field on which the player is standing.</param>
+    /// <param name="whichsTurn">0 = Blue / 1 = Green, this is important to not damage the players own team.</param>
+    /// <returns>Returns if a jump was possible or not.</returns>
     private bool ExecuteRandomJump(int playerID, int fieldID, int whichsTurn)
     {
         if (players[playerID].Null) return false;
@@ -583,10 +505,10 @@ class APMCS
     }
 
     /// <summary>
-    /// 
+    /// Handling attacking a specific player. 
     /// </summary>
-    /// <param name="playerID"></param>
-    /// <param name="immuneTeam"></param>
+    /// <param name="playerID">The ID of the player.</param>
+    /// <param name="immuneTeam">The teams ID (1/2) which is immune of this attack.</param>
     private void DamagePlayer(int playerID, int immuneTeam)
     {
         if (players[playerID].Team == immuneTeam) return;
@@ -605,9 +527,9 @@ class APMCS
     }
 
     /// <summary>
-    /// 
+    /// Returns the index of a random player which is still on the board.
     /// </summary>
-    /// <param name="whichsTurn"></param>
+    /// <param name="whichsTurn">The team for which a random player should get picked: 0 = Blue / 1 = Green</param>
     /// <returns></returns>
     private int PickRandomPlayer(int whichsTurn)
     {
@@ -660,7 +582,7 @@ class APMCS
     }
 
     /// <summary>
-    /// 
+    /// Checking if a player is standing on the middle field and collecting the tridon if its on the board.
     /// </summary>
     private void TridonCheck()
     {
@@ -845,28 +767,13 @@ class APMCS
             if (tempHeigth > 0 && f != 0) fields[f].verticalSorou.Add(fields[f].ID - 1);
             if (tempHeigth + 1 < fieldColumns[fields[f].Column].Count) fields[f].verticalSorou.Add(fields[f].ID + 1);
         }
-
-        //---> Card Options (Sorting) [Currently not used!]
-        playedCards.Add(new List<Card>());
-        playedCards.Add(new List<Card>());
-
-        for (int i = 0; i < 2; i++)
-        {
-            cardOptionsTurn1.Add(new List<List<int>>());
-            cardOptions.Add(new List<List<int>>());
-            for (int t = 0; t < 3; t++)
-            {
-                cardOptionsTurn1[i].Add(new List<int>());
-                cardOptions[i].Add(new List<int>());
-            }
-            for (int c = 0; c < cards.Count; c++)
-            {
-                cardOptionsTurn1[i][cards[c].TypeID].Add(cards[c].CardID);
-                cardOptions[i][cards[c].TypeID].Add(cards[c].CardID);
-            }
-        }
     }
 
+    /// <summary>
+    /// Gets the evaluation factor of a field.
+    /// </summary>
+    /// <param name="ID">The ID of the field.</param>
+    /// <returns></returns>
     private int GetFactorOfFieldByID(int ID)
     {
         if (ID > 21) ID = 21 - ID + 21;
@@ -982,31 +889,20 @@ class APMCS
 
 
     /// <summary>
-    /// Gives both players all card options back (2x Lists from 0-11)
+    /// Gives both players all card options back (0, 4, 8, 12 type boundaries)
     /// </summary>
     private void ResetTypeBoundariesToStandard()
     {
         Simulation_Type_Boundaries.Clear();
         Simulation_Type_Boundaries.Add(new int[4] { 0, 4, 8, 12 });
         Simulation_Type_Boundaries.Add(new int[4] { 0, 4, 8, 12 });
-
-        //APMCS_CardOptions[0] = new List<int>(APMCS_ResetOptions[0]);
-        //APMCS_CardOptions[1] = new List<int>(APMCS_ResetOptions[1]);
-
-        //APMCS_TypeOptions.Clear();
-        //APMCS_TypeOptions.Add(new List<List<int>>(3));
-        //APMCS_TypeOptions.Add(new List<List<int>>(3));
-        //for (int i = 0; i < 3; i++) {
-        //    APMCS_TypeOptions[0].Add(new List<int>(larr[i]));
-        //    APMCS_TypeOptions[1].Add(new List<int>(larr[i]));
-        //}
     }
 
     /// <summary>
-    /// 
+    /// Reducing the type boundaries depending on the played card.
     /// </summary>
-    /// <param name="playedCard"></param>
-    /// <param name="whichsTurn"></param>
+    /// <param name="playedCard">The index of the played card.</param>
+    /// <param name="whichsTurn">0 = Blue / 1 = Green</param>
     private void UpdateTypeBoundaries(int playedCard, int whichsTurn)
     {
         for(int i = 3; i > 0; i--)
