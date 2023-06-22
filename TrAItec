@@ -44,9 +44,9 @@ static class TrAI
 
 //-----------------------
 
-//=> [FINISHED_REWORK_NEEDED] Get Card Selection to work !!!
+//=> [FINISHED] Get Card Selection to work !!!
 
-//=> Methods Commentary (espacially completing summaries)
+//=> [FINISHED] Methods Commentary (espacially completing summaries)
 
 //=> [FINISHED] Evaluation Function & Sums
 
@@ -63,7 +63,8 @@ class APMCS
     #region VARIABLES
 
     //Predefined Consts / Values
-    private const int RolloutIntensity = 1000;
+    private const int RolloutIntensity = 33333;
+    private const int RolloutRoundTwoIntensity = 18;
 
     private const float heigth = 15, width = 29;
 
@@ -95,9 +96,9 @@ class APMCS
     //Setup
     private int round = 1, turn = 19;
 
-    private List<int> setupBlockades = new List<int>() { 10, 18, 19, 22, 23, 24, 32, 34, 21 };
-    private List<int> playerTeam1Spawns = new List<int>() { 15, 16, 12 }, 
-        playerTeam2Spawns = new List<int>() { 42, 14, 41 }, 
+    private List<int> setupBlockades = new List<int>() { 8, 10, 18, 19, 20, 21, 22, 23, 24, 32, 34 };
+    private List<int> playerTeam1Spawns = new List<int>() { 0, 1, 2 }, 
+        playerTeam2Spawns = new List<int>() { 40, 41, 42 }, 
         playerLives1Setups = new List<int>() { 2, 2, 2 },
         playerLives2Setups = new List<int>() { 2, 2, 2 };
 
@@ -233,7 +234,7 @@ class APMCS
             APMCS_CardOptions[0] = new List<int>(APMCS_StandardOptions);
             APMCS_CardOptions[1] = new List<int>(APMCS_StandardOptions);
             //ClearAPMCSOptions(); //-> Hier muss die Standard APMCS List geladen werden (full Options)
-            for (int t = 0; t < 4; t++)
+            for (int t = 0; t < RolloutRoundTwoIntensity; t++)
             {
                 //DrawBoard();
                 if (Simulation_Terminal_State) goto RollOutEnd;
@@ -264,6 +265,8 @@ class APMCS
         }
 
         stopwatch.Stop();
+
+        Console.Write("(" + stopwatch.ElapsedMilliseconds + "ms) ");
 
         //DrawBoard();
         //Console.WriteLine(evaluationSum / 200000f);
